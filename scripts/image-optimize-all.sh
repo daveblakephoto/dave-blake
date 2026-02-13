@@ -29,5 +29,25 @@ if (( ${#files[@]} == 0 )); then
 fi
 
 echo "Optimizing ${#files[@]} image(s) with imageoptim-cli..."
-npx imageoptim --jpegmini --imagealpha -- "${files[@]}"
+declare -a optim_flags=()
+if [[ -d "/Applications/JPEGmini.app" || -d "/Applications/JPEGmini Pro.app" || -d "$HOME/Applications/JPEGmini.app" || -d "$HOME/Applications/JPEGmini Pro.app" ]]; then
+  optim_flags+=(--jpegmini)
+else
+  echo "JPEGmini app not found; skipping --jpegmini optimizer."
+fi
+
+if [[ -d "/Applications/ImageAlpha.app" || -d "$HOME/Applications/ImageAlpha.app" ]]; then
+  optim_flags+=(--imagealpha)
+else
+  echo "ImageAlpha app not found; skipping --imagealpha optimizer."
+fi
+
+if ! npx imageoptim "${optim_flags[@]}" -- "${files[@]}"; then
+  if [[ "${IMAGE_OPTIM_STRICT:-0}" == "1" ]]; then
+    echo "Image optimization failed (IMAGE_OPTIM_STRICT=1)."
+    exit 1
+  fi
+  echo "Warning: image optimization failed; continuing with existing files."
+fi
+
 echo "Optimization complete."
