@@ -1,0 +1,10 @@
+generated_at_utc=2026-02-13T03:29:48Z
+site_primary=https://dave-blake.com/
+site_legacy=https://daveblake.com.au/
+skip_legacy=1
+export_sites=https://dave-blake.com/
+window_last90=2025-11-15..2026-02-12
+window_prevyear90=2024-11-15..2025-02-12
+row_limit=25000
+success_exports=2
+failed_exports=0

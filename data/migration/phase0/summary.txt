@@ -1,0 +1,11 @@
+source_dir=/Users/daveblake/site-backups/dave-blake-sspro/dave-blake.com
+generated_at_utc=2026-02-13T02:53:56Z
+total_urls=386
+tag_urls=162
+category_urls=62
+query_variants=16
+dated_story_urls=62
+dated_photographer_urls=7
+story_article_urls=35
+blog_article_urls=4
+rss_urls=4

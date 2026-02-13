@@ -1,0 +1,14 @@
+generated_at_utc=2026-02-13T03:45:25Z
+seed_tsv=data/migration/phase0/redirect_matrix_seed.tsv
+decisions_tsv=data/migration/phase0/missing_pages_decisions.tsv
+all_csv=data/migration/phase0/cloudflare_bulk_redirects_all.csv
+batch1_csv=data/migration/phase0/cloudflare_bulk_redirects_batch1.csv
+review_tsv=data/migration/phase0/cloudflare_bulk_redirects_review.tsv
+added_from_seed=772
+added_from_decisions=26
+excluded_recover=0
+excluded_410=0
+overridden_targets=0
+all_rows=798
+batch1_rows=44
+format_note=no-header-3-column-csv(source_url,target_url,status_code)

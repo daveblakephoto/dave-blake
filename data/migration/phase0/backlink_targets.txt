@@ -1,0 +1,7 @@
+# Add legacy paths with known external backlinks, one per line.
+# These can be full URLs or path-only entries.
+# Example:
+# https://daveblake.com.au/photographer/brisbane-fashion-photographer
+# /blog/top-modelling-agencies-brisbane-how-to-get-signed
+#
+# This file is used by scripts/seed_redirect_matrix.sh to elevate redirect priority.

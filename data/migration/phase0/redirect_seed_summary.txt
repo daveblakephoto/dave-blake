@@ -1,0 +1,7 @@
+generated_at_utc=2026-02-13T03:29:48Z
+legacy_file=data/migration/phase0/legacy_urls.txt
+output_csv=data/migration/phase0/redirect_matrix_seed.csv
+output_tsv=data/migration/phase0/redirect_matrix_seed.tsv
+top_priority_csv=data/migration/phase0/redirect_priority_p0_p1.csv
+gsc_pages_last90=included
+backlink_file=data/migration/phase0/backlink_targets.txt
