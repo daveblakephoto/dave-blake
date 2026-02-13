@@ -3610,10 +3610,18 @@ Gold Coast available by request.">
 <script>
 // move header block to bottom of page  
 if ($('#thumbnails').length) {
-  $('#thumbnails').after("<div class='main-footer'></div>");
-  $('#headerBlocks').appendTo('.main-footer');
+  var $mainFooter = $('#thumbnails').next('.main-footer');
+  if (!$mainFooter.length) {
+    $('#thumbnails').after("<div class='main-footer'></div>");
+    $mainFooter = $('#thumbnails').next('.main-footer');
+  }
+  if (!$('#headerBlocks').parent().is($mainFooter)) {
+    $('#headerBlocks').appendTo($mainFooter);
+  }
 } else {
-  $('#headerBlocks').appendTo('#page');  
+  if (!$('#headerBlocks').parent().is('#page')) {
+    $('#headerBlocks').appendTo('#page');
+  }
 }
 $('.social-links').prependTo('.footer');
 var bottomSocial = $('.social-links').clone().appendTo('#headerBlocks');
