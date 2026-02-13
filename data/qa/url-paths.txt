@@ -1,3 +1,5 @@
 # Dev vs prod sanity-check path set (wave 1)
 /
 /portfolio/fashion/
+/model-tests/
+/model-test-shoots/brisbane/
