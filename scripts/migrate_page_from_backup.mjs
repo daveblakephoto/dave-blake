@@ -79,6 +79,19 @@ function sanitizeFilename(name, fallbackSeed) {
   return `${safeStem}${safeExt}`;
 }
 
+function canonicalizeSqspFilename(name) {
+  let out = String(name || "");
+  out = out.replace(/\uFE16/g, "?");
+
+  // Normalize common Squarespace variant encodings to a single master filename.
+  out = out.replace(/-content-type-image[a-z0-9]+/gi, "");
+  out = out.replace(/\.(jpe?g|png|gif)\.webp$/i, ".$1");
+  out = out.replace(/\.(jpe?g|png|gif)-format-\d+w\.(jpe?g|png|gif|webp)$/i, ".$1");
+  out = out.replace(/-format-\d+w\.(jpe?g|png|gif|webp)$/i, ".$1");
+
+  return out;
+}
+
 function normalizeImageRef(ref) {
   let value = String(ref || "").trim();
   if (!value) return "";
@@ -299,7 +312,7 @@ async function localizeImageRefs({ html, backupRoot, repoRoot, assetDir }) {
     }
 
     const seed = crypto.createHash("sha1").update(sourceRef).digest("hex").slice(0, 8);
-    const rawName = path.basename(sourceRef);
+    const rawName = canonicalizeSqspFilename(path.basename(sourceRef));
     let filename = sanitizeFilename(rawName, seed);
     const existingSource = usedNames.get(filename);
     if (existingSource && existingSource !== sourceRef) {
