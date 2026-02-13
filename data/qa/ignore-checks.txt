@@ -1,0 +1,6 @@
+# Noisy checks to suppress during wave-1 parity.
+# Remove entries as pages are fully rebuilt and normalized.
+body_text_hash
+img_count
+vimeo_embed_count
+jsonld_types

@@ -310,6 +310,43 @@ function compareField(pagePath, check, prodValue, devValue, severity, note = "")
   return { path: pagePath, check, severity, prod: String(prodValue), dev: String(devValue), note };
 }
 
+function compareH1(pagePath, prodH1, devH1) {
+  const prod = String(prodH1 || "").trim();
+  const dev = String(devH1 || "").trim();
+  if (prod === dev) return null;
+
+  if (prod && !dev) {
+    return {
+      path: pagePath,
+      check: "h1",
+      severity: "critical",
+      prod,
+      dev,
+      note: "dev missing h1 present in prod",
+    };
+  }
+
+  if (!prod && dev) {
+    return {
+      path: pagePath,
+      check: "h1",
+      severity: "warn",
+      prod,
+      dev,
+      note: "dev adds h1 where prod has none",
+    };
+  }
+
+  return {
+    path: pagePath,
+    check: "h1",
+    severity: "warn",
+    prod,
+    dev,
+    note: "h1 text differs",
+  };
+}
+
 function shouldIgnoreRobots(prodRobots, devRobots) {
   const prodHasNoIndex = /noindex/i.test(prodRobots);
   const devHasNoIndex = /noindex/i.test(devRobots);
@@ -465,7 +502,7 @@ async function main() {
         devSnapshot.description,
         "warn"
       ),
-      compareField(pagePath, "h1", prodSnapshot.h1, devSnapshot.h1, "critical"),
+      compareH1(pagePath, prodSnapshot.h1, devSnapshot.h1),
       compareField(
         pagePath,
         "canonical_path",

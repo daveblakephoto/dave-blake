@@ -9,3 +9,7 @@
 # Node tooling
 node_modules/
 npm-debug.log*
+
+# Generated QA reports
+data/qa/reports/
+data/qa/latest.txt

@@ -6,6 +6,10 @@
     "image:optimize": "bash scripts/image-optimize-all.sh",
     "image:staged": "bash scripts/image-optimize-staged.sh",
     "image:check": "bash scripts/image-size-check.sh",
-    "precommit:images": "npm run -s image:staged && npm run -s image:check"
+    "precommit:images": "npm run -s image:staged && npm run -s image:check",
+    "qa:diff": "node scripts/dev-prod-diff-report.mjs",
+    "qa:diff:strict": "node scripts/dev-prod-diff-report.mjs --fail-on-critical",
+    "qa:diff:all": "node scripts/dev-prod-diff-report.mjs --paths data/qa/url-paths-all.txt",
+    "qa:diff:all:strict": "node scripts/dev-prod-diff-report.mjs --paths data/qa/url-paths-all.txt --fail-on-critical"
   }
 }

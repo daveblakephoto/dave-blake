@@ -1,0 +1,11 @@
+# Full migrated-page sanity-check set (current repo)
+/
+/blog/
+/blog/top-modelling-agencies-brisbane-how-to-get-signed/
+/model-test-shoots/brisbane/
+/model-tests/
+/photographer/brisbane-fashion-photographer/
+/photographer/swimwear-photography-sydney/
+/portfolio/fashion/
+/services/model-portfolios/brisbane/
+/services/model-portfolios/byron-bay/
