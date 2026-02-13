@@ -82,8 +82,10 @@ function sanitizeFilename(name, fallbackSeed) {
 function canonicalizeSqspFilename(name) {
   let out = String(name || "");
   out = out.replace(/\uFE16/g, "?");
+  out = out.replace(/[?﹖].*$/g, "");
 
   // Normalize common Squarespace variant encodings to a single master filename.
+  out = out.replace(/-content-type(?:=|-)?image[-/]?[A-Za-z0-9.+-]+/gi, "");
   out = out.replace(/-content-type-image[a-z0-9]+/gi, "");
   out = out.replace(/\.(jpe?g|png|gif)\.webp$/i, ".$1");
   out = out.replace(/\.(jpe?g|png|gif)-format-\d+w\.(jpe?g|png|gif|webp)$/i, ".$1");
@@ -95,7 +97,10 @@ function canonicalizeSqspFilename(name) {
 function normalizeImageRef(ref) {
   let value = String(ref || "").trim();
   if (!value) return "";
-  value = value.replace(/&amp;/g, "&");
+  value = value
+    .replace(/&amp;/gi, "&")
+    .replace(/&apos;|&#39;/gi, "'")
+    .replace(/&quot;/gi, '"');
 
   if (value.startsWith("http://") || value.startsWith("https://")) {
     try {
@@ -252,6 +257,7 @@ function routePathFromDest(dest) {
     value = value.slice(0, -".html".length);
   }
   value = value.replace(/^\.?\/*/, "");
+  if (value.toLowerCase() === "index") return "/";
   if (!value) return "/";
   return `/${value}/`;
 }
@@ -272,11 +278,181 @@ function injectCensusDisableFlag(html) {
   );
 }
 
+function injectLocalDevNoiseGuard(html) {
+  if (html.includes("__DB_LOCAL_DEV_NOISE_GUARD__")) return html;
+  const guardScript = [
+    "<script>",
+    "(function () {",
+    "  var isLocal = /^(localhost|127\\.0\\.0\\.1)$/.test(window.location.hostname);",
+    "  if (!isLocal) return;",
+    "  window.__DB_LOCAL_DEV_NOISE_GUARD__ = true;",
+    "",
+    "  function scrubVimeoUrl(value) {",
+    "    if (typeof value !== 'string') return value;",
+    "    return value.replace(/https?:\\/\\/player\\.vimeo\\.com\\/video\\/[^\\\"'\\s>]+/gi, 'about:blank');",
+    "  }",
+    "",
+    "  // Block any late Typekit script injection while preserving layout class cleanup.",
+    "  var originalAppendChild = Node.prototype.appendChild;",
+    "  Node.prototype.appendChild = function (node) {",
+    "    try {",
+    "      if (node && node.tagName === 'SCRIPT') {",
+    "        var src = (node.getAttribute && node.getAttribute('src')) || node.src || '';",
+    "        if (/use\\.typekit\\.net\\/ik\\//i.test(String(src))) {",
+    "          document.documentElement.classList.remove('wf-loading');",
+    "          return node;",
+    "        }",
+    "      }",
+    "    } catch (e) {}",
+    "    return originalAppendChild.call(this, node);",
+    "  };",
+    "",
+    "  // Prevent runtime components from re-injecting Vimeo embed URLs into data-html.",
+    "  var originalSetAttribute = Element.prototype.setAttribute;",
+    "  Element.prototype.setAttribute = function (name, value) {",
+    "    if (this && this.classList && this.classList.contains('sqs-video-wrapper') && String(name).toLowerCase() === 'data-html') {",
+    "      return originalSetAttribute.call(this, name, scrubVimeoUrl(value));",
+    "    }",
+    "    return originalSetAttribute.call(this, name, value);",
+    "  };",
+    "",
+    "  function scrubVimeoDataHtml(root) {",
+    "    if (!root || !root.querySelectorAll) return;",
+    "    root.querySelectorAll('.sqs-video-wrapper[data-html*=\"player.vimeo.com/video/\"]').forEach(function (el) {",
+    "      var raw = el.getAttribute('data-html') || '';",
+    "      var next = scrubVimeoUrl(raw);",
+    "      if (next !== raw) el.setAttribute('data-html', next);",
+    "    });",
+    "  }",
+    "",
+    "  function suppressVimeoPreviewIframes(root) {",
+    "    if (!root || !root.querySelectorAll) return;",
+    "    root.querySelectorAll('iframe[src*=\"player.vimeo.com/video/\"]').forEach(function (iframe) {",
+    "      if (iframe.dataset && iframe.dataset.dbLocalSrcSuppressed) return;",
+    "      if (iframe.dataset) iframe.dataset.dbLocalSrcSuppressed = iframe.getAttribute('src') || '';",
+    "      iframe.setAttribute('src', 'about:blank');",
+    "    });",
+    "  }",
+    "",
+    "  if (document.readyState === 'loading') {",
+    "    document.addEventListener('DOMContentLoaded', function () {",
+    "      scrubVimeoDataHtml(document);",
+    "      suppressVimeoPreviewIframes(document);",
+    "    }, { once: true });",
+    "  } else {",
+    "    scrubVimeoDataHtml(document);",
+    "    suppressVimeoPreviewIframes(document);",
+    "  }",
+    "",
+    "  var observer = new MutationObserver(function (mutations) {",
+    "    for (var i = 0; i < mutations.length; i += 1) {",
+    "      var mutation = mutations[i];",
+    "      for (var j = 0; j < mutation.addedNodes.length; j += 1) {",
+    "        scrubVimeoDataHtml(mutation.addedNodes[j]);",
+    "        suppressVimeoPreviewIframes(mutation.addedNodes[j]);",
+    "      }",
+    "      if (mutation.type === 'attributes' && mutation.target && mutation.target.matches && mutation.target.matches('.sqs-video-wrapper[data-html*=\"player.vimeo.com/video/\"]')) {",
+    "        scrubVimeoDataHtml(mutation.target.parentNode || document);",
+    "      }",
+    "      if (mutation.type === 'attributes' && mutation.target && mutation.target.matches && mutation.target.matches('iframe[src*=\"player.vimeo.com/video/\"]')) {",
+    "        suppressVimeoPreviewIframes(mutation.target.parentNode || document);",
+    "      }",
+    "    }",
+    "  });",
+    "",
+    "  observer.observe(document.documentElement, {",
+    "    childList: true,",
+    "    subtree: true,",
+    "    attributes: true,",
+    "    attributeFilter: ['src', 'data-html'],",
+    "  });",
+    "})();",
+    "</script>",
+  ].join("\n");
+
+  return html.replace(/<head>/i, `<head>\n${guardScript}`);
+}
+
+function rewriteTypekitScriptTag(html) {
+  const typekitTagRegex =
+    /<script\b[^>]*\bsrc=(["'])([^"']*\/use\.typekit\.net\/ik\/[^"']+)\1[^>]*><\/script>/i;
+
+  return html.replace(typekitTagRegex, (_full, _quote, src) => {
+    const srcLiteral = JSON.stringify(src);
+    return [
+      "<script>",
+      "(function () {",
+      "  var isLocal = /^(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|::1)$/.test(location.hostname);",
+      "  if (isLocal) {",
+      "    window.Typekit = window.Typekit || { load: function () {} };",
+      "    document.documentElement.classList.remove('wf-loading');",
+      "    return;",
+      "  }",
+      "  var s = document.createElement('script');",
+      `  s.src = ${srcLiteral};`,
+      "  s.async = true;",
+      "  s.setAttribute('fetchpriority', 'high');",
+      "  s.onload = function () {",
+      "    try { Typekit.load(); } catch (e) {}",
+      "    document.documentElement.classList.remove('wf-loading');",
+      "  };",
+      "  document.head.appendChild(s);",
+      "})();",
+      "</script>",
+    ].join("\n");
+  });
+}
+
+function hardenTypekitOnload(html) {
+  const legacy =
+    "onload=\"try{Typekit.load();}catch(e){} document.documentElement.classList.remove('wf-loading');\"";
+  const hardened =
+    "onload=\"if(!/^(localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0|::1)$/.test(location.hostname)){try{Typekit.load();}catch(e){}} document.documentElement.classList.remove('wf-loading');\"";
+  return html.replaceAll(legacy, hardened);
+}
+
 function hardenSquarespaceBlockAttrs(html) {
   let out = html;
   out = out.replace(/\sdata-block-scripts="[^"]*"/g, "");
   out = out.replace(/\sallowfullscreen(?=\s|>)/g, "");
   return out;
+}
+
+function normalizeImageQueryPart(rawQuery) {
+  if (!rawQuery) return "";
+  let query = String(rawQuery)
+    .replace(/&amp;/gi, "&")
+    .replace(/\uFE16/g, "?")
+    .trim()
+    .replace(/^[?&]+/, "");
+  if (!query) return "";
+
+  const parts = query.split("&").map((part) => part.trim()).filter(Boolean);
+  const normalized = [];
+
+  for (const part of parts) {
+    if (/^content-type=/i.test(part)) {
+      continue;
+    }
+
+    const formatMatch = part.match(
+      /^format=(\d{3,}w|original)(?:\.(?:jpe?g|png|webp|gif|avif|ico))?$/i
+    );
+    if (formatMatch) {
+      normalized.push(`format=${formatMatch[1].toLowerCase()}`);
+      continue;
+    }
+
+    const looseFormatMatch = part.match(/^format=(\d{3,}w|original)/i);
+    if (looseFormatMatch) {
+      normalized.push(`format=${looseFormatMatch[1].toLowerCase()}`);
+      continue;
+    }
+
+    normalized.push(part);
+  }
+
+  return normalized.join("&");
 }
 
 async function localizeImageRefs({ html, backupRoot, repoRoot, assetDir }) {
@@ -322,6 +498,13 @@ async function localizeImageRefs({ html, backupRoot, repoRoot, assetDir }) {
     usedNames.set(filename, sourceRef);
 
     const relOut = `/assets/images/pages/${assetDir}/${filename}`.replace(/\/+/g, "/");
+    const queryIdx = Math.max(decodedRef.indexOf("?"), decodedRef.indexOf("﹖"));
+    const queryPartRaw =
+      queryIdx !== -1 && queryIdx + 1 < decodedRef.length
+        ? decodedRef.slice(queryIdx + 1).trim()
+        : "";
+    const queryPart = normalizeImageQueryPart(queryPartRaw);
+    const localizedRef = queryPart ? `${relOut}?${queryPart}` : `${relOut}?format=1500w`;
     const absOut = path.join(repoRoot, relOut.slice(1));
     await fs.mkdir(path.dirname(absOut), { recursive: true });
     if (!fileExists(absOut)) {
@@ -329,7 +512,7 @@ async function localizeImageRefs({ html, backupRoot, repoRoot, assetDir }) {
       copied.push(relOut);
     }
 
-    replacements.set(rawRef, relOut);
+    replacements.set(rawRef, localizedRef);
   }
 
   let outHtml = html;
@@ -368,6 +551,8 @@ async function main() {
   html = stripPlausibleAndTracking(html);
   html = stripContentShooterNav(html);
   html = hardenSquarespaceBlockAttrs(html);
+  html = rewriteTypekitScriptTag(html);
+  html = hardenTypekitOnload(html);
   html = injectCensusDisableFlag(html);
 
   const localized = await localizeImageRefs({
