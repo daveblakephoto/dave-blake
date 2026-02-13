@@ -7,8 +7,5 @@
     "image:staged": "bash scripts/image-optimize-staged.sh",
     "image:check": "bash scripts/image-size-check.sh",
     "precommit:images": "npm run -s image:staged && npm run -s image:check"
-  },
-  "devDependencies": {
-    "imageoptim-cli": "^3.1.9"
   }
 }

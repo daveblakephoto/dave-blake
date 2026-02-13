@@ -8,46 +8,107 @@ if [[ ! -d "$ROOT_DIR" ]]; then
   exit 0
 fi
 
-if ! command -v npx >/dev/null 2>&1; then
-  echo "npx is required. Install Node.js/npm first."
-  exit 1
-fi
+find_jpegmini_app() {
+  if [[ -d "/Applications/JPEGmini Pro.app" ]]; then
+    echo "JPEGmini Pro"
+    return 0
+  fi
+  if [[ -d "/Applications/JPEGmini.app" ]]; then
+    echo "JPEGmini"
+    return 0
+  fi
+  if [[ -d "$HOME/Applications/JPEGmini Pro.app" ]]; then
+    echo "JPEGmini Pro"
+    return 0
+  fi
+  if [[ -d "$HOME/Applications/JPEGmini.app" ]]; then
+    echo "JPEGmini"
+    return 0
+  fi
+  return 1
+}
 
-if ! npx --no-install imageoptim --version >/dev/null 2>&1; then
-  echo "imageoptim-cli is not installed locally. Run: npm install"
-  exit 1
-fi
+sum_file_sizes() {
+  local total=0
+  local file=0
+  for file in "$@"; do
+    total=$((total + $(stat -f%z "$file")))
+  done
+  echo "$total"
+}
+
+wait_for_app_idle() {
+  local app_name="$1"
+  local timeout_secs="$2"
+  local idle_target=3
+  local idle_count=0
+  local elapsed=0
+  local interval=2
+
+  while (( elapsed < timeout_secs )); do
+    pids="$(pgrep -x "$app_name" || true)"
+    if [[ -z "$pids" ]]; then
+      return 0
+    fi
+
+    cpu_sum="$(ps -p "$pids" -o %cpu= | awk '{sum+=$1} END {printf "%.1f", sum+0}')"
+    cpu_int="${cpu_sum%.*}"
+    if (( cpu_int < 1 )); then
+      idle_count=$((idle_count + 1))
+      if (( idle_count >= idle_target )); then
+        return 0
+      fi
+    else
+      idle_count=0
+    fi
+
+    sleep "$interval"
+    elapsed=$((elapsed + interval))
+  done
+
+  return 1
+}
 
 declare -a files=()
+declare -a jpeg_files=()
 while IFS= read -r -d '' file; do
   files+=("$file")
 done < <(find "$ROOT_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" \) -print0)
+
+while IFS= read -r -d '' file; do
+  jpeg_files+=("$file")
+done < <(find "$ROOT_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" \) -print0)
 
 if (( ${#files[@]} == 0 )); then
   echo "No JPG/PNG images found under $ROOT_DIR."
   exit 0
 fi
 
-echo "Optimizing ${#files[@]} image(s) with imageoptim-cli..."
-declare -a optim_flags=()
-if [[ -d "/Applications/JPEGmini.app" || -d "/Applications/JPEGmini Pro.app" || -d "$HOME/Applications/JPEGmini.app" || -d "$HOME/Applications/JPEGmini Pro.app" ]]; then
-  optim_flags+=(--jpegmini)
-else
-  echo "JPEGmini app not found; skipping --jpegmini optimizer."
-fi
-
-if [[ -d "/Applications/ImageAlpha.app" || -d "$HOME/Applications/ImageAlpha.app" ]]; then
-  optim_flags+=(--imagealpha)
-else
-  echo "ImageAlpha app not found; skipping --imagealpha optimizer."
-fi
-
-if ! npx imageoptim "${optim_flags[@]}" -- "${files[@]}"; then
-  if [[ "${IMAGE_OPTIM_STRICT:-0}" == "1" ]]; then
-    echo "Image optimization failed (IMAGE_OPTIM_STRICT=1)."
-    exit 1
+if (( ${#jpeg_files[@]} > 0 )); then
+  jpegmini_app="$(find_jpegmini_app || true)"
+  if [[ -n "${jpegmini_app:-}" ]]; then
+    before_bytes="$(sum_file_sizes "${jpeg_files[@]}")"
+    echo "Optimizing ${#jpeg_files[@]} JPEG(s) with ${jpegmini_app}..."
+    open -a "$jpegmini_app" -- "${jpeg_files[@]}"
+    timeout_secs=$((30 + (${#jpeg_files[@]} * 4)))
+    if ! wait_for_app_idle "$jpegmini_app" "$timeout_secs"; then
+      if [[ "${IMAGE_OPTIM_STRICT:-0}" == "1" ]]; then
+        echo "JPEGmini did not reach idle state before timeout (IMAGE_OPTIM_STRICT=1)."
+        exit 1
+      fi
+      echo "Warning: JPEGmini did not reach idle state before timeout; continuing."
+    fi
+    after_bytes="$(sum_file_sizes "${jpeg_files[@]}")"
+    saved_bytes=$((before_bytes - after_bytes))
+    saved_mb="$(awk -v b="$saved_bytes" 'BEGIN { printf "%.2f", b/1024/1024 }')"
+    echo "JPEGmini complete. Savings: ${saved_mb} MB."
+  else
+    echo "JPEGmini app not found; skipping JPEG optimization."
   fi
-  echo "Warning: image optimization failed; continuing with existing files."
+fi
+
+if (( ${#files[@]} > ${#jpeg_files[@]} )); then
+  echo "PNG optimization is currently skipped in image:optimize."
 fi
 
 echo "Optimization complete."
