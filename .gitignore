@@ -1,0 +1,11 @@
+.DS_Store
+**/.DS_Store
+
+# Local environment and secrets
+.env
+.env.*
+*.local
+
+# Node tooling
+node_modules/
+npm-debug.log*

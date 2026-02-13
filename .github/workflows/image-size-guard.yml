@@ -1,0 +1,31 @@
+name: Image size guard
+
+on:
+  pull_request:
+    paths:
+      - "assets/images/pages/**"
+      - "scripts/image-size-check.sh"
+      - ".github/workflows/image-size-guard.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "assets/images/pages/**"
+      - "scripts/image-size-check.sh"
+      - ".github/workflows/image-size-guard.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-image-sizes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Enforce max image size
+        env:
+          MAX_IMAGE_BYTES: "2097152"
+        run: bash scripts/image-size-check.sh assets/images/pages

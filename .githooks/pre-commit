@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${SKIP_IMAGE_OPTIM:-0}" == "1" ]]; then
+  echo "Skipping image pre-commit checks (SKIP_IMAGE_OPTIM=1)."
+  exit 0
+fi
+
+if ! command -v npm >/dev/null 2>&1; then
+  echo "npm is required for image checks. Install Node.js/npm."
+  exit 1
+fi
+
+npm run -s precommit:images
