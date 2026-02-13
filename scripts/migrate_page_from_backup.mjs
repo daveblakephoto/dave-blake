@@ -211,6 +211,25 @@ function stripImageCdnPreconnect(html) {
   );
 }
 
+function rewriteSitesuckerVimeoRefs(html) {
+  let out = html;
+
+  // Prefer Vimeo iframe previews over local/proxied MP4 source tags.
+  out = out.replace(
+    /<video\b[^>]*class=["']video-preview["'][^>]*>\s*<source\b[^>]*src=["'](?:https?:\/\/|\/\/|\/)?sitesucker\.vimeocdn\.com\/(\d+)\.mp4(?:\?[^"']*)?["'][^>]*>\s*<\/video>/gi,
+    (_full, id) =>
+      `<iframe style="position: absolute;" src="https://player.vimeo.com/video/${id}?api=1&amp;background=1&amp;quality=480p" class="video-preview"></iframe>`
+  );
+
+  // Fallback: rewrite any leftover SiteSucker Vimeo CDN refs to Vimeo player URLs.
+  out = out.replace(
+    /((?:src|href|poster|data-src)\s*=\s*["'])(?:https?:\/\/|\/\/|\/)?sitesucker\.vimeocdn\.com\/(\d+)\.mp4(?:\?[^"']*)?(["'])/gi,
+    "$1https://player.vimeo.com/video/$2?api=1&amp;background=1&amp;quality=480p$3"
+  );
+
+  return out;
+}
+
 function rewriteRelativePrefixes(html) {
   // Convert ../ and ../../ asset/link refs into root-relative refs for static hosting.
   return html.replace(
@@ -276,101 +295,6 @@ function injectCensusDisableFlag(html) {
     /<head>/i,
     "<head>\n<script>window.__WE_ARE_SQUARESPACE_DISABLING_CENSUS__ = true;</script>"
   );
-}
-
-function injectLocalDevNoiseGuard(html) {
-  if (html.includes("__DB_LOCAL_DEV_NOISE_GUARD__")) return html;
-  const guardScript = [
-    "<script>",
-    "(function () {",
-    "  var isLocal = /^(localhost|127\\.0\\.0\\.1)$/.test(window.location.hostname);",
-    "  if (!isLocal) return;",
-    "  window.__DB_LOCAL_DEV_NOISE_GUARD__ = true;",
-    "",
-    "  function scrubVimeoUrl(value) {",
-    "    if (typeof value !== 'string') return value;",
-    "    return value.replace(/https?:\\/\\/player\\.vimeo\\.com\\/video\\/[^\\\"'\\s>]+/gi, 'about:blank');",
-    "  }",
-    "",
-    "  // Block any late Typekit script injection while preserving layout class cleanup.",
-    "  var originalAppendChild = Node.prototype.appendChild;",
-    "  Node.prototype.appendChild = function (node) {",
-    "    try {",
-    "      if (node && node.tagName === 'SCRIPT') {",
-    "        var src = (node.getAttribute && node.getAttribute('src')) || node.src || '';",
-    "        if (/use\\.typekit\\.net\\/ik\\//i.test(String(src))) {",
-    "          document.documentElement.classList.remove('wf-loading');",
-    "          return node;",
-    "        }",
-    "      }",
-    "    } catch (e) {}",
-    "    return originalAppendChild.call(this, node);",
-    "  };",
-    "",
-    "  // Prevent runtime components from re-injecting Vimeo embed URLs into data-html.",
-    "  var originalSetAttribute = Element.prototype.setAttribute;",
-    "  Element.prototype.setAttribute = function (name, value) {",
-    "    if (this && this.classList && this.classList.contains('sqs-video-wrapper') && String(name).toLowerCase() === 'data-html') {",
-    "      return originalSetAttribute.call(this, name, scrubVimeoUrl(value));",
-    "    }",
-    "    return originalSetAttribute.call(this, name, value);",
-    "  };",
-    "",
-    "  function scrubVimeoDataHtml(root) {",
-    "    if (!root || !root.querySelectorAll) return;",
-    "    root.querySelectorAll('.sqs-video-wrapper[data-html*=\"player.vimeo.com/video/\"]').forEach(function (el) {",
-    "      var raw = el.getAttribute('data-html') || '';",
-    "      var next = scrubVimeoUrl(raw);",
-    "      if (next !== raw) el.setAttribute('data-html', next);",
-    "    });",
-    "  }",
-    "",
-    "  function suppressVimeoPreviewIframes(root) {",
-    "    if (!root || !root.querySelectorAll) return;",
-    "    root.querySelectorAll('iframe[src*=\"player.vimeo.com/video/\"]').forEach(function (iframe) {",
-    "      if (iframe.dataset && iframe.dataset.dbLocalSrcSuppressed) return;",
-    "      if (iframe.dataset) iframe.dataset.dbLocalSrcSuppressed = iframe.getAttribute('src') || '';",
-    "      iframe.setAttribute('src', 'about:blank');",
-    "    });",
-    "  }",
-    "",
-    "  if (document.readyState === 'loading') {",
-    "    document.addEventListener('DOMContentLoaded', function () {",
-    "      scrubVimeoDataHtml(document);",
-    "      suppressVimeoPreviewIframes(document);",
-    "    }, { once: true });",
-    "  } else {",
-    "    scrubVimeoDataHtml(document);",
-    "    suppressVimeoPreviewIframes(document);",
-    "  }",
-    "",
-    "  var observer = new MutationObserver(function (mutations) {",
-    "    for (var i = 0; i < mutations.length; i += 1) {",
-    "      var mutation = mutations[i];",
-    "      for (var j = 0; j < mutation.addedNodes.length; j += 1) {",
-    "        scrubVimeoDataHtml(mutation.addedNodes[j]);",
-    "        suppressVimeoPreviewIframes(mutation.addedNodes[j]);",
-    "      }",
-    "      if (mutation.type === 'attributes' && mutation.target && mutation.target.matches && mutation.target.matches('.sqs-video-wrapper[data-html*=\"player.vimeo.com/video/\"]')) {",
-    "        scrubVimeoDataHtml(mutation.target.parentNode || document);",
-    "      }",
-    "      if (mutation.type === 'attributes' && mutation.target && mutation.target.matches && mutation.target.matches('iframe[src*=\"player.vimeo.com/video/\"]')) {",
-    "        suppressVimeoPreviewIframes(mutation.target.parentNode || document);",
-    "      }",
-    "    }",
-    "  });",
-    "",
-    "  observer.observe(document.documentElement, {",
-    "    childList: true,",
-    "    subtree: true,",
-    "    attributes: true,",
-    "    attributeFilter: ['src', 'data-html'],",
-    "  });",
-    "})();",
-    "</script>",
-  ].join("\n");
-
-  return html.replace(/<head>/i, `<head>\n${guardScript}`);
 }
 
 function rewriteTypekitScriptTag(html) {
@@ -545,6 +469,7 @@ async function main() {
 
   let html = await fs.readFile(sourceAbs, "utf8");
   html = rewriteRelativePrefixes(html);
+  html = rewriteSitesuckerVimeoRefs(html);
   html = rewriteInternalHtmlLinks(html);
   html = rewriteCanonicalHref(html, routePathFromDest(args.dest));
   html = stripImageCdnPreconnect(html);
