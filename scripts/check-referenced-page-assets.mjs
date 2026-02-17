@@ -36,8 +36,20 @@ function getFileAtRef(ref, filePath) {
 }
 
 function assetExistsAtRef(ref, assetRelPath) {
-  const result = git(["cat-file", "-e", `${ref}:${assetRelPath}`], true);
-  return result !== null;
+  const direct = git(["cat-file", "-e", `${ref}:${assetRelPath}`], true);
+  if (direct !== null) return true;
+
+  // Some mirrored assets intentionally end with ")" in the filename.
+  // The lightweight path extractor can drop that closing paren, so try both.
+  if (!assetRelPath.endsWith(")")) {
+    const withClosingParen = git(
+      ["cat-file", "-e", `${ref}:${assetRelPath})`],
+      true
+    );
+    if (withClosingParen !== null) return true;
+  }
+
+  return false;
 }
 
 function extractPageAssetPaths(content) {
@@ -111,4 +123,3 @@ function main() {
 }
 
 main();
-
