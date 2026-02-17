@@ -3,10 +3,13 @@
   "private": true,
   "scripts": {
     "hooks:install": "git config core.hooksPath .githooks",
+    "serve:local": "python3 -m http.server 4173 --bind 127.0.0.1",
+    "open:local:chrome": "bash scripts/open-clean-chrome.sh /",
     "image:optimize": "bash scripts/image-optimize-all.sh",
     "image:staged": "bash scripts/image-optimize-staged.sh",
     "image:check": "bash scripts/image-size-check.sh",
     "precommit:images": "npm run -s image:staged && npm run -s image:check",
+    "qa:local:strict": "bash scripts/qa-local-strict.sh",
     "qa:diff": "node scripts/dev-prod-diff-report.mjs",
     "qa:diff:strict": "node scripts/dev-prod-diff-report.mjs --fail-on-critical",
     "qa:diff:all": "node scripts/dev-prod-diff-report.mjs --paths data/qa/url-paths-all.txt",
